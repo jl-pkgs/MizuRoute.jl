@@ -1,0 +1,9 @@
+PASS: Julia source/test bracket static checks
+PASS: all principal routing kernels included by module
+PASS: hydraulic area/depth and Manning depth/discharge round trips
+PASS: shared ADE constant/zero/boundary/lateral-source invariants
+PASS: Muskingum-Cunge coefficient steady-flow conservation
+PASS: river-network upstream-to-downstream topological traversal
+PASS: Typst document include graph / file presence
+
+NOTE: These are static and Python numerical mirror checks, not Julia Pkg.test or Typst compilation.

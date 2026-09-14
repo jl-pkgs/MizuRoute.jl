@@ -1,0 +1,5 @@
+*.pdf
+*.cov
+*.mem
+Manifest.toml
+.DS_Store
