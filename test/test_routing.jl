@@ -34,13 +34,18 @@ end
             @test all(>=(0), discharge(model))
             @test all(isfinite, reach_storage(model))
             @test all(>=(0), reach_storage(model))
-            for i in model.network.order
-                # Because routing is headwater-to-outlet, current upstream
-                # discharge is already available when checking reach i.
-                qin = sum((discharge(model)[j] for j in upstream_indices(model.network, i)); init=0.0)
-                err = water_balance_error(vold[i], reach_storage(model)[i],
-                    qin, qlat[i], discharge(model)[i], model.dt)
-                @test abs(err) <= 1e-7 * max(1.0, vold[i] + (qin + qlat[i]) * model.dt)
+
+            if method isa LagrangianKWT
+                # Official KWT stores water implicitly in irregular wave points;
+                # REACH_VOL is not advanced by kwt_route.f90 itself.
+                @test all(==(0.0), reach_storage(model))
+            else
+                for i in model.network.order
+                    qin = sum((discharge(model)[j] for j in upstream_indices(model.network, i)); init=0.0)
+                    err = water_balance_error(vold[i], reach_storage(model)[i],
+                        qin, qlat[i], discharge(model)[i], model.dt)
+                    @test abs(err) <= 1e-7 * max(1.0, vold[i] + (qin + qlat[i]) * model.dt)
+                end
             end
         end
     end
@@ -56,4 +61,13 @@ end
     reset!(model)
     @test model.time == 0.0
     @test all(==(0.0), discharge(model))
+end
+
+@testset "mizuRoute active-reach semantics" begin
+    net = RiverNetwork([1, 2, 3], [3, 3, 0])
+    p = ReachParameters(3; length=1000.0, slope=0.001, bottom_width=5.0)
+    model = RoutingModel(Accumulation(), net, p; dt=3600.0,
+        active_reaches=[true, false, true])
+    step!(model, [1.0, 100.0, 0.0])
+    @test discharge(model)[3] == 1.0
 end
