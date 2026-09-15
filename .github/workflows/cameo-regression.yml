@@ -8,6 +8,11 @@ on:
       - 'src/**'
       - 'validation/cameo/**'
       - '.github/workflows/cameo-regression.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'validation/cameo/**'
+      - '.github/workflows/cameo-regression.yml'
 
 jobs:
   official-reference:

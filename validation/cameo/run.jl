@@ -32,10 +32,10 @@ p=ReachParameters(nreach; length=len,slope=slope,bottom_width=width,side_slope=0
     floodplain_slope=num("floodplain_slope"),bankfull_depth=num("bankfull_depth"),mann_n=num("mann_n"),
     irf_velocity=num("irf_velocity"),irf_diffusivity=num("irf_diffusivity"))
 
-# The bundled ForComparison files predate the current main-branch IRF low-flow
-# limiter. Use its serial/legacy semantics only for this historical oracle.
+# ForComparison/case1 is the historical serial v1.2 oracle. v1.2 IRF performs
+# pure QFUTURE_IRF convolution and has no reach-volume limiter.
 methods = [
-    ("irf", IRF(legacy_volume_limiter=true)),
+    ("irf", IRF(volume_limiter=:none)),
     ("kwt", LagrangianKWT(max_packets=20)),
 ]
 for (name,method) in methods

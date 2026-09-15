@@ -99,10 +99,9 @@ end
 Only upstream discharge is delayed by the reach IRF. Local lateral flow is
 inserted at the bottom of the reach and is not included in channel storage.
 
-Current mizuRoute main limits the channel outflow with
-`0.999*(max(0,V)/dt + Qin)`. Older serial mizuRoute (the implementation used
-for the bundled Cameo ForComparison files) used `V/dt + 0.999*Qin` and allowed
-negative volume to persist. Both are supported explicitly.
+`method.volume_limiter` controls version-specific behavior. mizuRoute v1.2
+serial IRF used pure UH convolution with no volume limiter; newer versions add
+reach-volume protection.
 """
 function _route_reach!(method::IRF, state::IRFState, p::ReachParameters,
     i::Int, qin::Float64, qlat::Float64, dt::Float64)
@@ -113,12 +112,13 @@ function _route_reach!(method::IRF, state::IRFState, p::ReachParameters,
     end
 
     vold = state.volume[i]
-    cap = if method.legacy_volume_limiter
-        vold / dt + 0.999 * qin
+    channel_out = if method.volume_limiter === :none
+        future[1]
+    elseif method.volume_limiter === :legacy
+        min(vold / dt + 0.999 * qin, future[1])
     else
-        (max(0.0, vold) / dt + qin) * 0.999
+        min((max(0.0, vold) / dt + qin) * 0.999, future[1])
     end
-    channel_out = min(cap, future[1])
     state.volume[i] = vold + (qin - channel_out) * dt
     qout = channel_out + qlat
 
@@ -127,7 +127,7 @@ function _route_reach!(method::IRF, state::IRFState, p::ReachParameters,
     end
     future[end] = 0.0
 
-    # Neither current nor legacy Fortran clamps the final IRF discharge here.
+    # Fortran v1.2 and current mizuRoute do not clamp final IRF discharge here.
     state.qout[i] = qout
     return qout
 end

@@ -5,19 +5,28 @@ struct Accumulation <: AbstractRoutingMethod end
 
 """Reach-specific impulse response function routing.
 
-`legacy_volume_limiter=true` reproduces the older serial mizuRoute IRF volume
-limiter used by the bundled Cameo `ForComparison` output. The default `false`
-matches the current mizuRoute main branch. The other keyword fields are retained
-for API compatibility; the kernel itself uses mizuRoute's fixed hourly `make_uh`.
+`volume_limiter` selects the IRF reach-volume treatment:
+- `:current` reproduces current mizuRoute (`max(0,V)` with the 0.999 safety factor),
+- `:legacy` retains the intermediate limiter used by older post-v1.2 code paths,
+- `:none` reproduces mizuRoute v1.2 serial IRF, which performs pure UH convolution
+  with no reach-volume limiter.
+
+`legacy_volume_limiter=true` is retained as a compatibility alias for
+`volume_limiter=:legacy`. The other keyword fields are retained for API
+compatibility; the kernel itself uses mizuRoute's fixed hourly `make_uh`.
 """
 struct IRF <: AbstractRoutingMethod
     horizon_factor::Float64
     min_steps::Int
-    legacy_volume_limiter::Bool
+    volume_limiter::Symbol
 end
-IRF(; horizon_factor::Real=6.0, min_steps::Integer=8,
-    legacy_volume_limiter::Bool=false) =
-    IRF(Float64(horizon_factor), Int(min_steps), legacy_volume_limiter)
+function IRF(; horizon_factor::Real=6.0, min_steps::Integer=8,
+    legacy_volume_limiter::Bool=false, volume_limiter::Symbol=:current)
+    mode = legacy_volume_limiter ? :legacy : volume_limiter
+    mode in (:current, :legacy, :none) ||
+        throw(ArgumentError("IRF volume_limiter must be :current, :legacy, or :none"))
+    IRF(Float64(horizon_factor), Int(min_steps), mode)
+end
 
 """mizuRoute/TopNet Lagrangian kinematic-wave tracking.
 
