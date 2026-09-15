@@ -45,19 +45,43 @@
   caption: [案例计算流程],
 )
 
-各数组的含义如下：
+本案例包含 8 个网格、4 个河段、20 个单位线时段和 31 个模拟时段。主要变量的实际尺寸如下；标量记为“标量”，`history` 是向量的向量，并非二维矩阵。
 
 #table(
-  columns: (1.2fr, 1fr, 1fr, 2.5fr),
-  inset: 5pt,
+  columns: (1.35fr, 1.35fr, 0.8fr, 2.5fr),
+  inset: 4.5pt,
   stroke: 0.4pt + rgb("aab4c0"),
-  table.header([*变量*], [*长度*], [*单位*], [*含义*]),
-  [`depth`], [网格数], [m/s], [当前时刻原始径流深率],
-  [`routed_depth`], [网格数], [m/s], [坡面汇流后的网格径流深率],
-  [`qinst`], [河段数], [m³/s], [原始径流直接聚合值，仅用于输入水量验证],
-  [`qlat`], [河段数], [m³/s], [坡面汇流后进入各河段的侧向流量],
-  [`discharge(river)`], [河段数], [m³/s], [当前时刻各河段出口流量],
+  table.header([*变量*], [*本案例尺寸*], [*单位*], [*含义*]),
+  [`dt`], [标量], [s], [时间步长，3600],
+  [`storm_steps`], [标量], [步], [产流持续时段数，12],
+  [`cell_area`], [`(8,)`], [m²], [8 个网格的面积],
+  [`cell_to_reach`], [`(8,)`], [—], [每个网格对应的内部河段索引],
+  [`net`], [4 个河段], [—], [河网拓扑对象；`length(net) == 4`],
+  [`p` 各参数字段], [`(4,)`], [依字段], [每个河段一组长度、坡度和断面参数],
+  [`hillslope.kernel`], [`(20,)`], [—], [归一化 Gamma 单位线权重],
+  [`hillslope.history`], [`(8,)`，元素 `(20,)`], [m/s], [8 个网格各自的 20 步历史],
+  [`ntime`], [标量], [步], [总模拟时段数，$12+20-1=31$],
+  [`runoff_depth`], [`(8, 31)`], [m/s], [网格 × 时间的径流深率输入],
+  [`depth`], [`(8,)`], [m/s], [当前时刻的径流深率视图],
+  [`routed_depth`], [`(8,)`], [m/s], [当前时刻坡面汇流后的网格径流],
+  [`qinst`], [`(4,)`], [m³/s], [原始径流聚合值，仅用于输入水量验证],
+  [`qlat`], [`(4,)`], [m³/s], [坡面汇流后进入各河段的侧向流量],
+  [`river`], [4 个河段], [—], [河道汇流模型及其动态状态],
+  [`discharge(river)`], [`(4,)`], [m³/s], [当前时刻各河段出口流量],
+  [`reach_storage(river)`], [`(4,)`], [m³], [当前时刻各河段蓄水量],
+  [`outlet_q`], [`(31,)`], [m³/s], [31 个时段的流域出口流量],
+  [各体积及误差变量], [标量], [m³], [累计体积或水量平衡误差],
 )
+
+可在循环开始前直接检查关键尺寸：
+
+```julia
+@show size(cell_area) size(cell_to_reach)
+@show length(net) size(hillslope.kernel)
+@show length(hillslope.history) size(first(hillslope.history))
+@show size(runoff_depth) size(qinst) size(routed_depth) size(qlat)
+@show size(outlet_q) size(discharge(river)) size(reach_storage(river))
+```
 
 == `route_hillslope!`：逐网格坡面汇流
 
