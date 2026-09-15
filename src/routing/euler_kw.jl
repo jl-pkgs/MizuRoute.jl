@@ -29,6 +29,8 @@ function _route_reach!(::EulerKinematicWave, state::EulerKWState,
     end
     state.volume[i] += (qin - channel_out) * dt
     state.profile[i] = qnode
-    state.qout[i] = max(0.0, channel_out + qlat)
+    # Fortran stores Qnode(nMolecule-1)+Qlat directly; do not add a Julia-only
+    # non-negative clamp after the ADE/low-flow limiter.
+    state.qout[i] = channel_out + qlat
     return state.qout[i]
 end
