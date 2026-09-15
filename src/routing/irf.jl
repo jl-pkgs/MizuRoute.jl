@@ -2,7 +2,10 @@
     (t <= 0.0 || d <= 0.0 || c <= 0.0) && return 0.0
     pot = ((c * t - x)^2) / (4.0 * d * t)
     pot > 69.0 && return 0.0
-    return x / (2.0 * sqrt(pi * d * t)) * exp(-pot)
+    # mizuRoute public_var uses this literal value rather than the language
+    # intrinsic, so retain it for bit-level parity in UH construction.
+    π_mizu = 3.14159265359
+    return x / (2.0 * sqrt(π_mizu * d * t)) * exp(-pot)
 end
 
 """Build the reach IRF exactly as mizuRoute `make_uh` does.
@@ -24,11 +27,13 @@ function _irf_weights(length::Real, velocity::Real, diff::Real, dt::Real;
 
     uhm = zeros(Float64, ntmax)
     if c > 0.0 && d > 0.0
+        # Keep explicit scalar accumulation order to mirror the Fortran loop.
+        inte = 0.0
         for ihr in 1:ntmax
             uhm[ihr] = _irf_green(x, ihr * dtu, c, d)
+            inte += uhm[ihr]
         end
-        s = sum(uhm)
-        s > 0.0 && (uhm ./= s)
+        inte > 0.0 && (uhm ./= inte)
     end
 
     cum = 0.0
@@ -49,6 +54,7 @@ function _irf_weights(length::Real, velocity::Real, diff::Real, dt::Real;
     fr = zeros(Float64, ntmax)
     fr[1:min(ntsub, ntmax)] .= 1.0 / ntsub
     uhq = zeros(Float64, ntmax)
+    inte = 0.0
     for jhr in 1:ntmax
         q0 = 0.0
         for ihr in ihr_start:ihr_last
@@ -60,15 +66,15 @@ function _irf_weights(length::Real, velocity::Real, diff::Real, dt::Real;
             end
         end
         uhq[jhr] = q0
+        inte += q0
     end
-    s = sum(uhq)
-    if !(s > 0.0)
+    if !(inte > 0.0)
         n = max(Int(min_steps), 1)
         w = zeros(Float64, n)
         w[clamp(round(Int, x / max(c * Δt, 1.0e-12)) + 1, 1, n)] = 1.0
         return w
     end
-    uhq ./= s
+    uhq ./= inte
 
     cum = 0.0
     ihr_last = ntmax
@@ -88,13 +94,17 @@ function _irf_weights(length::Real, velocity::Real, diff::Real, dt::Real;
     return seguh
 end
 
-"""mizuRoute v3.1 IRF reach update.
+"""mizuRoute IRF reach update.
 
 Only upstream discharge is delayed by the reach IRF. Local lateral flow is
-inserted at the bottom of the reach (the default `hw_drain_point=2`) and is not
-included in channel storage.
+inserted at the bottom of the reach and is not included in channel storage.
+
+Current mizuRoute main limits the channel outflow with
+`0.999*(max(0,V)/dt + Qin)`. Older serial mizuRoute (the implementation used
+for the bundled Cameo ForComparison files) used `V/dt + 0.999*Qin` and allowed
+negative volume to persist. Both are supported explicitly.
 """
-function _route_reach!(::IRF, state::IRFState, p::ReachParameters,
+function _route_reach!(method::IRF, state::IRFState, p::ReachParameters,
     i::Int, qin::Float64, qlat::Float64, dt::Float64)
     future = state.history[i]
     kernel = state.kernel[i]
@@ -102,8 +112,14 @@ function _route_reach!(::IRF, state::IRFState, p::ReachParameters,
         future[k] += kernel[k] * qin
     end
 
-    channel_out = min((max(0.0, state.volume[i]) / dt + qin) * 0.999, future[1])
-    state.volume[i] -= (channel_out - qin) * dt
+    vold = state.volume[i]
+    cap = if method.legacy_volume_limiter
+        vold / dt + 0.999 * qin
+    else
+        (max(0.0, vold) / dt + qin) * 0.999
+    end
+    channel_out = min(cap, future[1])
+    state.volume[i] = vold + (qin - channel_out) * dt
     qout = channel_out + qlat
 
     @inbounds for k in 1:(length(future) - 1)
@@ -111,6 +127,7 @@ function _route_reach!(::IRF, state::IRFState, p::ReachParameters,
     end
     future[end] = 0.0
 
-    state.qout[i] = max(0.0, qout)
-    return state.qout[i]
+    # Neither current nor legacy Fortran clamps the final IRF discharge here.
+    state.qout[i] = qout
+    return qout
 end
