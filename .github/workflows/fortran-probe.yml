@@ -1,0 +1,63 @@
+name: Fortran Cameo probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fortran-probe.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: cache-cameo
+        with:
+          path: cameo.tar.gz
+          key: cameo-v3.1-zenodo-17794327
+      - name: Download Cameo
+        if: steps.cache-cameo.outputs.cache-hit != 'true'
+        run: curl -fL https://zenodo.org/api/records/17794327/files/testCase_cameo_v3.1.tar.gz/content -o cameo.tar.gz
+      - name: Install Fortran dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gfortran libnetcdf-dev libnetcdff-dev openmpi-bin libopenmpi-dev make
+          mpifort --version
+          nc-config --prefix
+          nf-config --prefix
+      - name: Build pinned official mizuRoute
+        run: |
+          git clone -q https://github.com/ESCOMP/mizuRoute.git upstream
+          cd upstream
+          git checkout -q ec68c7f4e3241c6cb0ea0a96b632d85fe33fb219
+          cd route/build
+          gmake FC=gnu FC_EXE=mpifort F_MASTER="$PWD/../" NCDF_PATH=/usr EXE=route_runoff isPIO=no isGPTL=no isOpenMP=no MODE=fast
+          ls -lh ../bin/route_runoff
+      - name: Run all routing methods on Cameo case1
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p cameo
+          tar -xzf cameo.tar.gz -C cameo
+          ROOT="$PWD/cameo/testCase_cameo_v3.1"
+          cp "$ROOT/settings/v3.1/testCase_cameo_case1.control" "$ROOT/settings/v3.1/fortran_all.control"
+          sed -i -E 's#^<route_opt>.*#<route_opt> 012345#' "$ROOT/settings/v3.1/fortran_all.control"
+          mkdir -p "$ROOT/output"
+          cd "$ROOT"
+          "$GITHUB_WORKSPACE/upstream/route/bin/route_runoff" settings/v3.1/fortran_all.control
+          echo '=== output files ==='
+          find output -maxdepth 1 -type f -printf '%p %s\n' | sort
+      - name: Inspect Fortran output
+        run: |
+          python -m pip install -q netCDF4
+          python - <<'PY'
+          from pathlib import Path
+          from netCDF4 import Dataset
+          root=Path('cameo/testCase_cameo_v3.1/output')
+          for p in sorted(root.glob('*.nc')):
+              print('\n==',p,'==')
+              with Dataset(p) as ds:
+                  print({k:len(v) for k,v in ds.dimensions.items()})
+                  print(list(ds.variables))
+          PY
