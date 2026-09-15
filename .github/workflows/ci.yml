@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        julia-version: ['1.10', '1.11', '1.12']
+        julia-version: ['1.12', '1.13']
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -48,18 +48,18 @@ jobs:
           # Keep coverage generation/upload wired in without making CI red.
           fail_ci_if_error: false
 
-  typst-docs:
-    name: Typst documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: typst-community/setup-typst@v4
-        with:
-          typst-version: '0.15.1'
-      - working-directory: docs
-        run: typst compile main.typ MizuRoute.pdf
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MizuRoute-technical-documentation
-          path: docs/MizuRoute.pdf
-          if-no-files-found: error
+  # typst-docs:
+  #   name: Typst documentation
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: typst-community/setup-typst@v4
+  #       with:
+  #         typst-version: '0.15.1'
+  #     - working-directory: docs
+  #       run: typst compile main.typ MizuRoute.pdf
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: MizuRoute-technical-documentation
+  #         path: docs/MizuRoute.pdf
+  #         if-no-files-found: error

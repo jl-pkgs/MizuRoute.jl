@@ -1,3 +1,5 @@
+#import "@preview/physica:0.9.8": dv, pdv
+
 = 水力学与汇流算法
 
 == 河道断面与 Manning 水力学
@@ -17,7 +19,7 @@ $ Q = 1/n A R_h^(2/3) sqrt(S_0). $
 
 运动波波速按
 
-$ C = partial Q / partial A $
+$ C = pdv(Q, A) $
 
 计算，代码中使用围绕当前正常水深的数值微分。扩散波系数采用 mizuRoute 技术说明中的形式
 
@@ -55,7 +57,7 @@ $ h(x,t) = x/(2 t sqrt(pi t D)) exp(-(C t-x)^2/(4 D t)). $
 
 原 mizuRoute KWT 源自 TopNet/Goring 的 Lagrangian wave-tracking 思路 @mizukami2016。本 Julia 版本保留其核心物理概念：将一个时间步进入河段的水量表示为沿特征线传播的 conservative packet，其传播速度由当前特征流量的运动波波速决定：
 
-$ dif x / dif t = C(Q). $
+$ dv(x, t) = C(Q). $
 
 每个 packet 保存水量、距出口剩余距离及 characteristic discharge。当剩余距离降至零时，该 packet 在当前时间步成为出口流量。相近 characteristic packets 会自动合并，以限制长模拟中的状态规模。
 
@@ -65,7 +67,7 @@ $ dif x / dif t = C(Q). $
 
 忽略扩散项后得到线性化运动波方程：
 
-$ partial Q/partial t + C partial Q/partial x = C q_l. $
+$ pdv(Q, t) + C pdv(Q, x) = C q_l. $
 
 当前 mizuRoute 的 Euler-KW 并不是单独的显式迎风求解器，而是令扩散系数 $D=0$，调用与 Diffusive Wave 共用的 `solve_ade` 三对角求解器。Julia 版据此采用相同架构：默认中心差分、全隐式时间权重，上游为给定流量 Dirichlet 边界，下游为保留上一时间层流量梯度的 Neumann 边界。
 
@@ -101,7 +103,7 @@ $ C_2 = (1-X-0.5 C_n)/(1-X+0.5 C_n). $
 
 扩散波控制方程为
 
-$ partial Q/partial t + C partial Q/partial x = D partial^2 Q/partial x^2 + C q_l. $
+$ pdv(Q, t) + C pdv(Q, x) = D pdv(Q, x, 2) + C q_l. $
 
 Julia 版将 mizuRoute `advection_diffusion.f90` 抽成共享的 `advection_diffusion.jl`。令
 

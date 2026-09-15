@@ -1,8 +1,9 @@
-#set page(paper: "a4", margin: (x: 2.2cm, y: 2.0cm))
-#set text(size: 10.5pt)
+#import "@local/modern-cug-report:0.1.3": *
+#show: doc => template(doc, footer: "", header: "")
+
 #set par(justify: true, leading: 0.65em)
 #set heading(numbering: "1.1")
-#set math.equation(numbering: "(1)")
+// #set math.equation(numbering: "(1)")
 
 #align(center)[
   #text(size: 20pt, weight: "bold")[MizuRoute.jl]

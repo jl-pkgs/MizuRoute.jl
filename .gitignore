@@ -3,3 +3,5 @@
 *.mem
 Manifest.toml
 .DS_Store
+
+cameo
