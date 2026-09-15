@@ -7,6 +7,15 @@ A lightweight Julia river-routing kernel that reimplements the principal
 algorithms documented in ESCOMP/mizuRoute for direct coupling to hydrological
 and land-surface models.
 
+This project is an independent Julia reimplementation of core river-routing
+ideas and equations documented by ESCOMP/mizuRoute. mizuRoute is developed by
+NCAR/ESCOMP and contributors and is distributed under the Apache License 2.0.
+
+The implementation in this package does not copy the mizuRoute MPI/PIO/CESM
+infrastructure and is not an official ESCOMP product. See docs/validation.typ
+for the current fidelity and validation status.
+
+
 ## Included core algorithms
 
 - runoff accumulation (diagnostic baseline)
@@ -76,6 +85,43 @@ EulerKinematicWave(cells_per_reach=12)
 MuskingumCunge()
 DiffusiveWave(cells_per_reach=12, alpha=1.0, beta=1.0)
 ```
+
+## Inputs required by each method
+
+All methods require a `RiverNetwork`, a routing interval `dt` [s], and lateral
+inflow `qlat` [m³/s] for every reach and time step. The routing methods use the
+following fields from `ReachParameters`:
+
+| Method                 | Reach data used                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `Accumulation()`       | None; it only sums upstream and lateral inflow                                                  |
+| `IRF()`                | `length`, `irf_velocity`, `irf_diffusivity`                                                     |
+| `LagrangianKWT()`      | `length`, `slope`, `mann_n`                                                                     |
+| `EulerKinematicWave()` | `length`, `slope`, `bottom_width`, `side_slope`, `floodplain_slope`, `bankfull_depth`, `mann_n` |
+| `MuskingumCunge()`     | `length`, `slope`, `bottom_width`, `side_slope`, `floodplain_slope`, `bankfull_depth`, `mann_n` |
+| `DiffusiveWave()`      | `length`, `slope`, `bottom_width`, `side_slope`, `floodplain_slope`, `bankfull_depth`, `mann_n` |
+
+`ReachParameters` currently requires `length`, `slope`, and `bottom_width` even
+when the selected method does not use all three. Every field may be either one
+scalar shared by all reaches or a vector of length `nreach`; vector order must
+match `reach_id`. Gridded input additionally requires runoff depth [m/s], cell
+area [m²], and an internal reach index for each cell, as shown above.
+
+### Where flow direction enters
+
+MizuRoute.jl does not read a D8/D∞ flow-direction raster or route water across
+land grid cells. Flow direction is used during preprocessing to derive:
+
+1. `cell_to_reach`: the receiving reach for each runoff cell or HRU;
+2. `downstream_id`: the downstream reach for each river reach.
+
+At runtime, `map_runoff` immediately aggregates `runoff_depth * cell_area` into
+local reach inflow `qlat`; optional `GammaUHRouter` adds hillslope travel-time
+delay, and the selected routing method then routes flow through `RiverNetwork`.
+If the host hydrological model already routes runoff to the channel, pass its
+channel-entry discharge directly as `qlat` and skip both `map_runoff` and
+`GammaUHRouter`. `qlat` must exclude upstream-reach discharge, which MizuRoute
+adds internally.
 
 ## Tests
 

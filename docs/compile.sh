@@ -1,2 +1,2 @@
-typst c main.typ
-typst c manual.typ
+typst c docs/main.typ
+typst c docs/manual.typ

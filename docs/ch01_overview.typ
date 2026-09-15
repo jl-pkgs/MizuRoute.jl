@@ -2,14 +2,14 @@
 
 == 目标
 
-MizuRoute.jl 的目标不是逐行复制 mizuRoute 的 Fortran 工程框架，而是将其主要河道汇流算法重新实现为一个可直接嵌入 Julia 水文模型、陆面模式或 PUB 模型的轻量核心库。mizuRoute 的基本工作流是：将水文模型提供的径流深转换并映射为河段侧向入流，必要时先做坡面延迟，再按上游到下游的顺序完成河道路由 @mizukami2016。
+MizuRoute.jl 的目标不是逐行复制 mizuRoute 的 Fortran 工程框架，而是将其主要河道汇流算法重新实现为一个可直接嵌入 Julia 水文模型、陆面模式或 PUB 模型的轻量核心库。mizuRoute 的基本工作流是：将水文模型提供的径流深转换并映射为河段侧向入流，必要时先做坡面延迟，再按上游到下游的顺序完成河道汇流 @mizukami2016。
 
 本实现保留以下科学计算部分：
 
 - 河网拓扑及上游到下游的拓扑排序；
 - 径流深到河段侧向流量的守恒映射；
 - gamma 分布单位线坡面汇流；
-- IRF、Lagrangian KWT、Euler KW、Muskingum--Cunge 和 Diffusive Wave 五类主要河道路由；
+- IRF、Lagrangian KWT、Euler KW、Muskingum--Cunge 和 Diffusive Wave 五类主要河道汇流；
 - Manning 水力学、复合梯形断面、波速与扩散系数；
 - 河段水量平衡以及可选的取水/补水通量。
 
@@ -49,7 +49,7 @@ $ Q_("up", i) = sum_(j in U(i)) Q_("out", j). $
 
 == 水量守恒
 
-所有路由算法最后统一执行河段水量平衡：
+所有汇流算法最后统一执行河段水量平衡：
 
 $ V^(t+1) = V^t + (Q_("in") + Q_("lat") - Q_("out")) Delta t. $
 

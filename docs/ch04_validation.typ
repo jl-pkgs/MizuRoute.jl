@@ -40,17 +40,8 @@ $ epsilon_Q(i,t) = Q_("Julia")(i,t) - Q_("Fortran")(i,t), $
 
 == Typst 编译
 
-本文档不依赖 Typst Universe 包，可离线编译：
-
-```bash
-cd docs
-typst compile main.typ MizuRoute.pdf
-```
-
-推荐 Typst >= 0.15.1。若需要在论文中使用更多物理量排版宏，可在后续版本中选择性引入 `physica`，但核心技术文档刻意保持零外部依赖。
+推荐 Typst >= 0.15.1，引入 `physica`，但核心技术文档刻意保持零外部依赖。
 
 == GitHub Actions 验证状态
-
-当前仓库已经通过 GitHub Actions 的真实运行测试：Julia 1.10、1.11 和 1.12 三个版本均可成功加载 `MizuRoute`，且 `Pkg.test()` 全部通过；Typst 0.15.1 也可成功编译 `docs/main.typ`，生成的 `MizuRoute.pdf` 由 workflow 作为 artifact 上传。
 
 除运行时 CI 外，仓库还保留了静态源代码检查和独立 Python 数值镜像 sanity check，结果位于 `validation/`。这些内部测试验证了代码自身的一致性，但不能替代与官方 Fortran mizuRoute Cameo/testCase 的逐 reach 数值回归。后者仍是下一阶段最重要的参考验证。

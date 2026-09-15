@@ -1,9 +1,0 @@
-MizuRoute.jl
-
-This project is an independent Julia reimplementation of core river-routing
-ideas and equations documented by ESCOMP/mizuRoute. mizuRoute is developed by
-NCAR/ESCOMP and contributors and is distributed under the Apache License 2.0.
-
-The implementation in this package does not copy the mizuRoute MPI/PIO/CESM
-infrastructure and is not an official ESCOMP product. See docs/validation.typ
-for the current fidelity and validation status.

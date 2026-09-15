@@ -43,7 +43,7 @@ MuskingumCunge(cfl=0.9)
 DiffusiveWave(cells_per_reach=12, alpha=1.0, beta=1.0)
 ```
 
-此外 `Accumulation()` 可作为无河道路由的基线，仅执行上游流量与本地径流的即时累加。
+此外 `Accumulation()` 可作为无河道汇流的基线，仅执行上游流量与本地径流的即时累加。
 
 == 参数结构
 

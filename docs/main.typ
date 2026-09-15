@@ -18,11 +18,14 @@
 #outline(title: [目录], depth: 3)
 #pagebreak()
 
-#include "overview.typ"
-#include "algorithms.typ"
-#include "api.typ"
-#include "validation.typ"
+#include "ch01_overview.typ"
 
-= 参考文献
+#include "ch02_algorithms.typ"
+#pagebreak()
 
-#bibliography("refs.bib")
+#include "ch03_api.typ"
+#pagebreak()
+
+#include "ch04_validation.typ"
+
+#bibliography("refs.bib", title: "参考文献")

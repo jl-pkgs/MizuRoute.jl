@@ -12,6 +12,7 @@ p = ReachParameters(length(net);
     irf_velocity=1.2,
     irf_diffusivity=300.0,
 )
+
 river = RoutingModel(DiffusiveWave(cells_per_reach=12),net,p;dt=3600.0)
 cell_area=fill(25e6,8)
 cell_to_reach=[1,1,2,2,3,3,4,4]
