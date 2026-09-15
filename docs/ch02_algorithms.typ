@@ -197,15 +197,19 @@ $ sum_m h_m = 1. $
 
 == Impulse Response Function (IRF)
 
-IRF 来自一维扩散波方程的 Green 函数 @mizukami2016：
+#include "uh_Lohmann.typ"
 
-$ Q(x,t) = integral_0^t Q_(in)(t-s) h(x,s) dif s, $
+=== mizuRoute 的逐河段实现
 
-其中
+经典 Lohmann 方法采用 source-to-sink 方案：对每个目标出口，分别构造其全部上游 HRU 到该出口的总 IRF，再将各源区响应相加。当前 mizuRoute 改为逐河段计算：每条 Reach 根据自身长度 $L$、波速 $C$ 和扩散系数 $D$ 构造 IRF，只处理相邻上游 Reach 的流量，并按拓扑顺序逐段向下游传播 @mizukami2016。在线性且 $C,D$ 固定时，沿路径逐段卷积与 source-to-sink 卷积等价，但前者无需保存所有“源区—出口”组合，内存需求更低。
 
-$ h(x,t) = x/(2 t sqrt(pi t D)) exp(-(C t-x)^2/(4 D t)). $
+需要注意，mizuRoute 技术说明采用上面的 $t^(-3/2)$ 理论 Green 函数；原版 `make_uh` 程序及本 Julia 移植为保持数值一致，实际采样式为
 
-每条河段根据自身长度 $L$、IRF 速度 $C$ 和扩散系数 $D$ 预计算离散 kernel，再对当前及历史输入做卷积。kernel 会重新归一化为单位和，因此不会人为增加或减少水量。
+$ tilde(h)(x,t) = x/(2 sqrt(pi D t)) exp(-(x-C t)^2/(4 D t)), $
+
+随后对离散序列重新归一化。因此，本实现复现的是 mizuRoute 程序行为，而不是直接数值积分理论密度。程序以 1 h 为基础间隔计算最多 240 h 的响应，先与一个 routing interval 内均匀分布的单位径流脉冲卷积，累计概率达到 0.9999 后截断，再聚合到模型时间步。应用时宜使用整小时的 routing interval，并检查主要旅行时间明显小于 10 d；超长河段应进一步分段。
+
+本 Julia 实现中，只有 `IRF()` 属于 Lohmann/VIC 同源的河道汇流方法；`GammaUHRouter` 只描述坡面入河延迟，KWT、Euler KW、Muskingum--Cunge 和 Diffusive Wave 均不属于 Lohmann IRF。每条河段的离散 kernel 最终归一化为单位和，因此不会人为增加或减少水量。
 
 == Lagrangian Kinematic-Wave Tracking (KWT)
 
