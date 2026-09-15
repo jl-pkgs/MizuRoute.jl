@@ -1,6 +1,7 @@
 # MizuRoute.jl
 
 [![CI](https://github.com/jl-pkgs/MizuRoute.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/jl-pkgs/MizuRoute.jl/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/jl-pkgs/MizuRoute.jl/graph/badge.svg)](https://codecov.io/gh/jl-pkgs/MizuRoute.jl)
 
 A lightweight Julia river-routing kernel that reimplements the principal
 algorithms documented in ESCOMP/mizuRoute for direct coupling to hydrological

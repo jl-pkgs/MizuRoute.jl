@@ -5,27 +5,31 @@ struct Accumulation <: AbstractRoutingMethod end
 
 """Reach-specific impulse response function routing.
 
-`horizon_factor` controls how many mean travel times are retained in the
-numerical convolution kernel. `min_steps` prevents excessively short kernels.
+`legacy_volume_limiter=true` reproduces the older serial mizuRoute IRF volume
+limiter used by the bundled Cameo `ForComparison` output. The default `false`
+matches the current mizuRoute main branch. The other keyword fields are retained
+for API compatibility; the kernel itself uses mizuRoute's fixed hourly `make_uh`.
 """
 struct IRF <: AbstractRoutingMethod
     horizon_factor::Float64
     min_steps::Int
+    legacy_volume_limiter::Bool
 end
-IRF(; horizon_factor::Real=6.0, min_steps::Integer=8) =
-    IRF(Float64(horizon_factor), Int(min_steps))
+IRF(; horizon_factor::Real=6.0, min_steps::Integer=8,
+    legacy_volume_limiter::Bool=false) =
+    IRF(Float64(horizon_factor), Int(min_steps), legacy_volume_limiter)
 
-"""Compact Lagrangian characteristic implementation of kinematic-wave tracking.
+"""mizuRoute/TopNet Lagrangian kinematic-wave tracking.
 
-This follows the mizuRoute/TopNet idea of moving discharge characteristics in
-space. It is intentionally independent of mizuRoute's Fortran bookkeeping so
-that it can be embedded in other Julia models.
+`max_packets` corresponds to mizuRoute's `MAXQPAR` cap on the wave array.
+`merge_rtol` is retained for backward API compatibility but is not used by the
+exact Goring/TopNet shock-merging algorithm.
 """
 struct LagrangianKWT <: AbstractRoutingMethod
     max_packets::Int
     merge_rtol::Float64
 end
-LagrangianKWT(; max_packets::Integer=256, merge_rtol::Real=0.02) =
+LagrangianKWT(; max_packets::Integer=20, merge_rtol::Real=0.0) =
     LagrangianKWT(Int(max_packets), Float64(merge_rtol))
 
 """Eulerian kinematic-wave routing using mizuRoute's shared implicit ADE solver."""
@@ -33,7 +37,7 @@ struct EulerKinematicWave <: AbstractRoutingMethod
     cells_per_reach::Int
     cfl::Float64
 end
-EulerKinematicWave(; cells_per_reach::Integer=12, cfl::Real=0.85) =
+EulerKinematicWave(; cells_per_reach::Integer=20, cfl::Real=1.0) =
     EulerKinematicWave(Int(cells_per_reach), Float64(cfl))
 
 """Muskingum-Cunge routing with dynamic Cunge X and Courant-based substepping."""
@@ -53,7 +57,7 @@ struct DiffusiveWave <: AbstractRoutingMethod
     alpha::Float64
     beta::Float64
 end
-DiffusiveWave(; cells_per_reach::Integer=12, alpha::Real=1.0, beta::Real=1.0) =
+DiffusiveWave(; cells_per_reach::Integer=20, alpha::Real=1.0, beta::Real=1.0) =
     DiffusiveWave(Int(cells_per_reach), Float64(alpha), Float64(beta))
 
 """Hydraulic and IRF parameters for all river reaches.
@@ -152,10 +156,18 @@ mutable struct IRFState{T<:AbstractFloat}
     kernel::Vector{Vector{T}}
 end
 
-mutable struct WavePacket{T<:AbstractFloat}
-    volume::T
-    distance::T
-    qchar::T
+"""One mizuRoute KWT `FPOINT` wave entry.
+
+`q` is unit-width discharge [m²/s], and `tentry`/`texit` are seconds on the
+model time axis. `routed` corresponds to Fortran `RF`; `qmod` corresponds to
+`QM` and is reserved for water-management compatibility.
+"""
+mutable struct KWTPoint{T<:AbstractFloat}
+    q::T
+    tentry::T
+    texit::T
+    routed::Bool
+    qmod::T
 end
 
 mutable struct KWTState{T<:AbstractFloat}
@@ -163,7 +175,8 @@ mutable struct KWTState{T<:AbstractFloat}
     qin::Vector{T}
     volume::Vector{T}
     wm_actual::Vector{T}
-    packets::Vector{Vector{WavePacket{T}}}
+    waves::Vector{Vector{KWTPoint{T}}}
+    qlat_prev::Vector{T}
 end
 
 mutable struct EulerKWState{T<:AbstractFloat}
@@ -198,4 +211,6 @@ mutable struct RoutingModel{M<:AbstractRoutingMethod,S,T<:AbstractFloat}
     dt::T
     time::T
     state::S
+    active::BitVector
+    headwater_drain_point::Int
 end

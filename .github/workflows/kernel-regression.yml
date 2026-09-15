@@ -1,0 +1,40 @@
+name: Fortran kernel regression
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'src/**'
+      - 'validation/kernels/**'
+      - '.github/workflows/kernel-regression.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'validation/kernels/**'
+      - '.github/workflows/kernel-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kw-mc-dw:
+    name: KW / MC / DW vs Fortran kernels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate Julia package
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+      - name: Compile standalone Fortran reference kernels
+        run: |
+          mkdir -p validation/kernels/work
+          gfortran -O2 -std=f2008 validation/kernels/reference.f90 -o /tmp/mizuroute-kernel-reference
+      - name: Generate Fortran reference trajectory
+        working-directory: validation/kernels/work
+        run: /tmp/mizuroute-kernel-reference
+      - name: Compare Julia reach states timestep-by-timestep
+        run: julia --project=. validation/kernels/compare.jl validation/kernels/work/kernel_reference.csv

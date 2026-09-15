@@ -1,161 +1,159 @@
-const _HYD_EPS = 1.0e-12
+const _HYD_EPS = 1.0e-50
+const _CONST23 = 2.0 / 3.0
+const _CONST53 = 5.0 / 3.0
+const _CONST103 = 10.0 / 3.0
+const _FLOW_DEPTH_RTOL = 0.005
 
-"""Top width of a compound trapezoidal channel [m]."""
-function top_width(y::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=Inf)
-    y1 = max(Float64(y), 0.0)
-    b1 = Float64(b)
-    zc1 = Float64(zc)
-    bf = Float64(bankfull_depth)
-    zf1 = Float64(zf)
-    if y1 <= bf
-        return b1 + 2.0 * zc1 * y1
-    end
-    bbank = b1 + 2.0 * zc1 * bf
-    return bbank + 2.0 * zf1 * (y1 - bf)
+"""Top width of the mizuRoute compound trapezoidal section [m]."""
+function top_width(y::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=1.0e6)
+    yy = max(Float64(y), 0.0); bb=Float64(b); zz=Float64(zc)
+    zff=Float64(zf); bd=Float64(bankfull_depth)
+    yy <= bd && return bb + 2.0 * yy * zz
+    return bb + 2.0 * bd * zz + 2.0 * zff * (yy - bd)
 end
 
-"""Wetted perimeter [m] of the compound cross section."""
-function wetted_perimeter(y::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=Inf)
-    y1 = max(Float64(y), 0.0)
-    b1 = Float64(b)
-    zc1 = Float64(zc)
-    bf = Float64(bankfull_depth)
-    zf1 = Float64(zf)
-    if y1 <= bf
-        return b1 + 2.0 * y1 * hypot(1.0, zc1)
-    end
-    pbank = b1 + 2.0 * bf * hypot(1.0, zc1)
-    return pbank + 2.0 * (y1 - bf) * hypot(1.0, zf1)
+"""Wetted perimeter [m] matching mizuRoute `Pwet`."""
+function wetted_perimeter(y::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=1.0e6)
+    yy=max(Float64(y),0.0); bb=Float64(b); zz=Float64(zc)
+    zff=Float64(zf); bd=Float64(bankfull_depth)
+    yy <= bd && return bb + 2.0 * yy * sqrt(1.0 + zz^2)
+    return bb + 2.0 * bd * sqrt(1.0 + zz^2) + 2.0 * (yy-bd) * sqrt(1.0 + zff^2)
 end
 
-"""Flow cross-sectional area [m²]."""
-function flow_area(y::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=Inf)
-    y1 = max(Float64(y), 0.0)
-    b1 = Float64(b)
-    zc1 = Float64(zc)
-    bf = Float64(bankfull_depth)
-    zf1 = Float64(zf)
-    if y1 <= bf
-        return y1 * (b1 + zc1 * y1)
-    end
-    abank = bf * (b1 + zc1 * bf)
-    bbank = b1 + 2.0 * zc1 * bf
-    dy = y1 - bf
-    return abank + dy * (bbank + zf1 * dy)
+"""Flow area [m²] matching mizuRoute `flow_area`."""
+function flow_area(y::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=1.0e6)
+    yy=max(Float64(y),0.0); bb=Float64(b); zz=Float64(zc)
+    zff=Float64(zf); bd=Float64(bankfull_depth)
+    yy <= bd && return yy * (bb + zz * yy)
+    ab = bd * (bb + zz * bd)
+    bt = top_width(yy,bb,zz;zf=zff,bankfull_depth=bd)
+    btb = top_width(bd,bb,zz;zf=zff,bankfull_depth=bd)
+    return ab + (yy-bd) * (bt+btb) / 2.0
 end
 
-"""Invert cross-sectional area to water depth [m]."""
-function water_height(area::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=Inf)
-    a = max(Float64(area), 0.0)
-    b1 = Float64(b)
-    zc1 = Float64(zc)
-    bf = Float64(bankfull_depth)
-    zf1 = Float64(zf)
-    if isinf(bf)
-        if zc1 == 0.0
-            return a / b1
+"""Invert cross-sectional area to water height [m]."""
+function water_height(area::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=1.0e6)
+    a=max(Float64(area),0.0); bb=Float64(b); zz=Float64(zc)
+    zff=Float64(zf); bd=Float64(bankfull_depth)
+    ab=flow_area(bd,bb,zz;zf=zff,bankfull_depth=bd)
+    if a > ab
+        btb=top_width(bd,bb,zz;zf=zff,bankfull_depth=bd)
+        disc=btb^2 - 4.0*zff*(ab-a)
+        return bd + (-btb + sqrt(max(0.0,disc))) / (2.0*zff)
+    elseif zz == 0.0
+        return a / bb
+    else
+        return (-bb + sqrt(bb^2 + 4.0*a*zz)) / (2.0*zz)
+    end
+end
+
+hydraulic_radius(y::Real,b::Real,zc::Real;zf::Real=1000.0,bankfull_depth::Real=1.0e6) =
+    flow_area(y,b,zc;zf=zf,bankfull_depth=bankfull_depth) /
+    wetted_perimeter(y,b,zc;zf=zf,bankfull_depth=bankfull_depth)
+
+"""Manning uniform flow exactly following mizuRoute `uniformFlow`."""
+function manning_discharge(y::Real,b::Real,zc::Real,slope::Real,mann_n::Real;
+    zf::Real=1000.0,bankfull_depth::Real=1.0e6)
+    yy=Float64(y); yy<=0.0 && return 0.0
+    bb=Float64(b); zz=Float64(zc); s=Float64(slope); n=Float64(mann_n)
+    zff=Float64(zf); bd=Float64(bankfull_depth)
+    if yy <= bd
+        a=flow_area(yy,bb,zz;zf=zff,bankfull_depth=bd)
+        p=wetted_perimeter(yy,bb,zz;zf=zff,bankfull_depth=bd)
+        return a*(a/p)^_CONST23*sqrt(s)/n
+    end
+    ab=flow_area(bd,bb,zz;zf=zff,bankfull_depth=bd)
+    pb=wetted_perimeter(bd,bb,zz;zf=zff,bankfull_depth=bd)
+    btb=top_width(bd,bb,zz;zf=zff,bankfull_depth=bd)
+    ye=yy-bd
+    ach=ab+btb*ye
+    qch=ach*(ach/pb)^_CONST23*sqrt(s)/n
+    afp=ye*zff*ye/2.0
+    pfp=ye*sqrt(1.0+zff^2)
+    qfp=afp>0 ? 2.0*(afp*(afp/pfp)^_CONST23*sqrt(s)/n) : 0.0
+    return qch+qfp
+end
+
+"""Normal depth with the Newton iteration and tolerance used by mizuRoute v3.1."""
+function flow_depth(q::Real,b::Real,zc::Real,slope::Real,mann_n::Real;
+    zf::Real=1000.0,bankfull_depth::Real=1.0e6,rtol::Real=_FLOW_DEPTH_RTOL,maxiter::Integer=100)
+    Q=Float64(q); Q<=_HYD_EPS && return 0.0
+    bb=Float64(b); zz=Float64(zc); S=Float64(slope); n=Float64(mann_n)
+    S<=0.0 && return 0.0
+    zff=Float64(zf); bd=Float64(bankfull_depth)
+    ab=flow_area(bd,bb,zz;zf=zff,bankfull_depth=bd)
+    pb=wetted_perimeter(bd,bb,zz;zf=zff,bankfull_depth=bd)
+    btb=top_width(bd,bb,zz;zf=zff,bankfull_depth=bd)
+    qbf=ab*(ab/pb)^_CONST23*sqrt(S)/n
+    err=100.0
+    y=0.0
+    if Q < qbf
+        coef1=(sqrt(S)/n/Q)^3
+        coef2=2.0*sqrt(zz^2+1.0)
+        y0=(1.0/(coef1*bb^3))^(1.0/5.0)
+        for _ in 1:maxiter
+            a=flow_area(y0,bb,zz;zf=zff,bankfull_depth=bd)
+            bt=top_width(y0,bb,zz;zf=zff,bankfull_depth=bd)
+            p=wetted_perimeter(y0,bb,zz;zf=zff,bankfull_depth=bd)
+            h=coef1*a^5/p^2-1.0
+            dh=coef1*(5.0*a^4*bt*p-2.0*coef2*a^5)/p^3
+            y=y0-h/dh
+            if !(isfinite(y) && y>0.0); return max(y0,0.0); end
+            err=abs((y-y0)/y)
+            y0=y
+            err <= rtol && break
         end
-        return (-b1 + sqrt(max(0.0, b1^2 + 4.0 * zc1 * a))) / (2.0 * zc1)
-    end
-    abank = flow_area(bf, b1, zc1; zf=zf1, bankfull_depth=bf)
-    if a <= abank
-        if zc1 == 0.0
-            return a / b1
-        end
-        return (-b1 + sqrt(max(0.0, b1^2 + 4.0 * zc1 * a))) / (2.0 * zc1)
-    end
-    bbank = top_width(bf, b1, zc1; zf=zf1, bankfull_depth=bf)
-    if zf1 == 0.0
-        return bf + (a - abank) / bbank
-    end
-    disc = bbank^2 + 4.0 * zf1 * (a - abank)
-    return bf + (-bbank + sqrt(max(0.0, disc))) / (2.0 * zf1)
-end
-
-"""Hydraulic radius A/P [m]."""
-function hydraulic_radius(y::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=Inf)
-    a = flow_area(y, b, zc; zf=zf, bankfull_depth=bankfull_depth)
-    p = wetted_perimeter(y, b, zc; zf=zf, bankfull_depth=bankfull_depth)
-    return a / max(p, _HYD_EPS)
-end
-
-"""Manning uniform-flow discharge [m³/s]."""
-function manning_discharge(y::Real, b::Real, zc::Real, slope::Real, mann_n::Real;
-    zf::Real=1000.0, bankfull_depth::Real=Inf)
-    y <= 0 && return 0.0
-    a = flow_area(y, b, zc; zf=zf, bankfull_depth=bankfull_depth)
-    r = hydraulic_radius(y, b, zc; zf=zf, bankfull_depth=bankfull_depth)
-    s = max(Float64(slope), 0.0)
-    n = Float64(mann_n)
-    return (a * r^(2.0 / 3.0) * sqrt(s)) / n
-end
-
-"""Normal flow depth [m] obtained by robust bracketed bisection of Manning's equation."""
-function flow_depth(q::Real, b::Real, zc::Real, slope::Real, mann_n::Real;
-    zf::Real=1000.0, bankfull_depth::Real=Inf, rtol::Real=1.0e-8, maxiter::Integer=100)
-    target = max(Float64(q), 0.0)
-    target == 0.0 && return 0.0
-    slope <= 0 && return 0.0
-    lo = 0.0
-    hi = isfinite(bankfull_depth) ? max(1.0, Float64(bankfull_depth)) : 1.0
-    while manning_discharge(hi, b, zc, slope, mann_n; zf=zf, bankfull_depth=bankfull_depth) < target
-        hi *= 2.0
-        hi > 1.0e6 && throw(ArgumentError("could not bracket flow depth for q=$target"))
-    end
-    for _ in 1:maxiter
-        mid = 0.5 * (lo + hi)
-        qm = manning_discharge(mid, b, zc, slope, mann_n; zf=zf, bankfull_depth=bankfull_depth)
-        abs(qm - target) <= max(1.0, target) * rtol && return mid
-        if qm < target
-            lo = mid
-        else
-            hi = mid
+    else
+        y0=bd+2.0
+        coef1=sqrt(S)/n/pb^_CONST23
+        coef2=2.0*(zff/2.0)^_CONST53*sqrt(S)/n/(zff^2+1.0)^(1.0/3.0)
+        for _ in 1:maxiter
+            ye=y0-bd
+            h=coef1*(ab+btb*ye)^_CONST53 + coef2*ye^(_CONST103-_CONST23) - Q
+            dh=coef1*_CONST53*btb*(ab+btb*ye)^_CONST23 +
+               coef2*(_CONST103-_CONST23)*ye^_CONST53
+            y=y0-h/dh
+            if !(isfinite(y) && y>bd); return max(y0,bd); end
+            err=abs((y-y0)/y)
+            y0=y
+            err <= rtol && break
         end
     end
-    return 0.5 * (lo + hi)
+    return y
 end
 
-"""Channel storage [m³] for uniform depth over a reach."""
-storage(y::Real, length::Real, b::Real, zc::Real; zf::Real=1000.0, bankfull_depth::Real=Inf) =
-    flow_area(y, b, zc; zf=zf, bankfull_depth=bankfull_depth) * Float64(length)
+storage(y::Real,length::Real,b::Real,zc::Real;zf::Real=1000.0,bankfull_depth::Real=1.0e6) =
+    flow_area(y,b,zc;zf=zf,bankfull_depth=bankfull_depth)*Float64(length)
 
-"""Kinematic-wave celerity dQ/dA [m/s], evaluated numerically from Manning flow."""
-function celerity(q::Real, b::Real, zc::Real, slope::Real, mann_n::Real;
-    zf::Real=1000.0, bankfull_depth::Real=Inf)
-    q1 = max(Float64(q), 0.0)
-    q1 <= _HYD_EPS && return 0.0
-    y = flow_depth(q1, b, zc, slope, mann_n; zf=zf, bankfull_depth=bankfull_depth)
-    dy = max(1.0e-6, 1.0e-4 * max(y, 1.0))
-    y0 = max(0.0, y - dy)
-    y2 = y + dy
-    q0 = manning_discharge(y0, b, zc, slope, mann_n; zf=zf, bankfull_depth=bankfull_depth)
-    q2 = manning_discharge(y2, b, zc, slope, mann_n; zf=zf, bankfull_depth=bankfull_depth)
-    a0 = flow_area(y0, b, zc; zf=zf, bankfull_depth=bankfull_depth)
-    a2 = flow_area(y2, b, zc; zf=zf, bankfull_depth=bankfull_depth)
-    return max(0.0, (q2 - q0) / max(a2 - a0, _HYD_EPS))
+"""Wave celerity [m/s] using the exact mizuRoute hydraulic formula."""
+function celerity(q::Real,b::Real,zc::Real,slope::Real,mann_n::Real;
+    zf::Real=1000.0,bankfull_depth::Real=1.0e6)
+    Q=abs(Float64(q)); Q<=_HYD_EPS && return 0.0
+    y=flow_depth(Q,b,zc,slope,mann_n;zf=zf,bankfull_depth=bankfull_depth)
+    y<=0.0 && return 0.0
+    a=flow_area(y,b,zc;zf=zf,bankfull_depth=bankfull_depth)
+    p=wetted_perimeter(y,b,zc;zf=zf,bankfull_depth=bankfull_depth)
+    bt=top_width(y,b,zc;zf=zf,bankfull_depth=bankfull_depth)
+    sf=(Q*Float64(mann_n)/a/(a/p)^_CONST23)^2
+    return _CONST53*sf^0.3*Q^0.4/bt^0.4/Float64(mann_n)^0.6
 end
 
-"""Diffusive-wave diffusivity [m²/s].
-
-Using D = K²/(2QB) and Q = K√S gives D = Q/(2BS) under the
-uniform-flow approximation used for routing parameters.
-"""
-function diffusivity(q::Real, b::Real, zc::Real, slope::Real, mann_n::Real;
-    zf::Real=1000.0, bankfull_depth::Real=Inf)
-    q1 = max(Float64(q), 0.0)
-    q1 <= _HYD_EPS && return 0.0
-    s = max(Float64(slope), 1.0e-10)
-    y = flow_depth(q1, b, zc, slope, mann_n; zf=zf, bankfull_depth=bankfull_depth)
-    bt = top_width(y, b, zc; zf=zf, bankfull_depth=bankfull_depth)
-    return q1 / (2.0 * max(bt, _HYD_EPS) * s)
+"""Diffusive-wave diffusivity [m²/s] matching mizuRoute v3.1."""
+function diffusivity(q::Real,b::Real,zc::Real,slope::Real,mann_n::Real;
+    zf::Real=1000.0,bankfull_depth::Real=1.0e6)
+    Q=abs(Float64(q)); Q<=_HYD_EPS && return 0.0
+    y=flow_depth(Q,b,zc,slope,mann_n;zf=zf,bankfull_depth=bankfull_depth)
+    y<=0.0 && return 0.0
+    a=flow_area(y,b,zc;zf=zf,bankfull_depth=bankfull_depth)
+    p=wetted_perimeter(y,b,zc;zf=zf,bankfull_depth=bankfull_depth)
+    bt=top_width(y,b,zc;zf=zf,bankfull_depth=bankfull_depth)
+    sf=(Q*Float64(mann_n)/a/(a/p)^_CONST23)^2
+    return Q/sf/bt/2.0
 end
 
-@inline function _reach_celerity(p::ReachParameters, i::Int, q::Real)
-    celerity(q, p.bottom_width[i], p.side_slope[i], p.slope[i], p.mann_n[i];
-        zf=p.floodplain_slope[i], bankfull_depth=p.bankfull_depth[i])
-end
-
-@inline function _reach_diffusivity(p::ReachParameters, i::Int, q::Real)
-    diffusivity(q, p.bottom_width[i], p.side_slope[i], p.slope[i], p.mann_n[i];
-        zf=p.floodplain_slope[i], bankfull_depth=p.bankfull_depth[i])
-end
+@inline _reach_celerity(p::ReachParameters,i::Int,q::Real) =
+    celerity(q,p.bottom_width[i],p.side_slope[i],p.slope[i],p.mann_n[i];
+        zf=p.floodplain_slope[i],bankfull_depth=p.bankfull_depth[i])
+@inline _reach_diffusivity(p::ReachParameters,i::Int,q::Real) =
+    diffusivity(q,p.bottom_width[i],p.side_slope[i],p.slope[i],p.mann_n[i];
+        zf=p.floodplain_slope[i],bankfull_depth=p.bankfull_depth[i])

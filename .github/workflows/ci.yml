@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  actions: write
+  contents: read
+  id-token: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -27,6 +32,21 @@ jobs:
       - run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
       - run: julia --project=. -e 'using MizuRoute; println("MizuRoute loaded successfully")'
       - run: julia --project=. -e 'using Pkg; Pkg.test(; coverage=true)'
+      - name: Process coverage
+        if: matrix.julia-version == '1.12'
+        uses: julia-actions/julia-processcoverage@v1
+      - name: Upload coverage to Codecov
+        if: matrix.julia-version == '1.12'
+        uses: codecov/codecov-action@v7
+        with:
+          files: lcov.info
+          flags: unittests
+          name: julia-1.12
+          use_oidc: true
+          # Codecov currently reports "Repository not found" until the
+          # jl-pkgs organization/repository is enabled on codecov.io.
+          # Keep coverage generation/upload wired in without making CI red.
+          fail_ci_if_error: false
 
   typst-docs:
     name: Typst documentation

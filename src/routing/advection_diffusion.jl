@@ -40,10 +40,10 @@ mizuRoute Neumann condition that preserves the previous-step outlet gradient.
 `wc=wd=1` gives the default fully implicit scheme. `advection=:central` is the
 mizuRoute default; `:upwind` is also provided.
 
-mizuRoute currently passes a `FluxLat` argument to `solve_ade` although the
-current Fortran RHS does not explicitly use it. Here `qlat` is included as the
-uniform source term implied by the documented PDE. Set `include_lateral=false`
-for bug-for-bug comparison with that specific Fortran routine.
+Important for numerical regression: the current mizuRoute Fortran routine
+accepts `FluxLat` but does not add it to the right-hand side, and it does not
+clip negative values after the tridiagonal solve. Set `include_lateral=false`
+to reproduce that behavior (the river-routing kernels do so).
 """
 function _solve_ade(qprev::Vector{Float64}, reach_length::Float64, dt::Float64,
     qupstream::Float64, ck::Float64, dk::Float64, qlat::Float64=0.0;
@@ -63,21 +63,22 @@ function _solve_ade(qprev::Vector{Float64}, reach_length::Float64, dt::Float64,
     # computational sub-segment extends beyond the nominal outlet.
     nx = n - 1
     dx = reach_length / (nx - 1)
-    cd = max(dk, 0.0) * dt / dx^2
-    ca = max(ck, 0.0) * dt / dx
+    cd = dk * dt / dx^2
+    ca = ck * dt / dx
 
     lower = zeros(Float64, n)
     diag  = zeros(Float64, n)
     upper = zeros(Float64, n)
     rhs   = zeros(Float64, n)
 
-    # Upstream Dirichlet boundary.
+    # Upstream Dirichlet boundary. Do not clamp: Fortran assigns FluxUpstream
+    # directly, and exact regression must preserve the same algebra.
     diag[1] = 1.0
-    rhs[1] = max(qupstream, 0.0)
+    rhs[1] = qupstream
 
-    # The source has discharge units. After multiplying the central-difference
-    # equations by 2*dt, the uniform source contribution is 2*dt*c*Qlat/L.
-    source = include_lateral ? 2.0 * dt * max(ck, 0.0) * qlat / reach_length : 0.0
+    # `FluxLat` is presently unused by mizuRoute's Fortran ADE RHS. Keep an
+    # opt-in source term for standalone use, but all parity kernels disable it.
+    source = include_lateral ? 2.0 * dt * ck * qlat / reach_length : 0.0
 
     if advection === :upwind
         @inbounds for j in 2:(n - 1)
@@ -112,9 +113,7 @@ function _solve_ade(qprev::Vector{Float64}, reach_length::Float64, dt::Float64,
         rhs[n] = qprev[n] - qprev[n - 1]
     end
 
-    qnew = _tdma(lower, diag, upper, rhs)
-    @inbounds for j in eachindex(qnew)
-        qnew[j] = max(0.0, isfinite(qnew[j]) ? qnew[j] : 0.0)
-    end
-    return qnew
+    # Do not post-process the solution. The Fortran TDMA returns the raw
+    # tridiagonal solution; clipping here changes KW/DW propagation.
+    return _tdma(lower, diag, upper, rhs)
 end
