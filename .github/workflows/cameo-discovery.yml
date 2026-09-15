@@ -8,24 +8,56 @@ jobs:
   discover:
     runs-on: ubuntu-latest
     steps:
-      - name: Download and inspect official Cameo v3.1
+      - uses: actions/cache@v4
+        id: cache-cameo
+        with:
+          path: cameo.tar.gz
+          key: cameo-v3.1-zenodo-17794327
+      - name: Download Cameo v3.1
+        if: steps.cache-cameo.outputs.cache-hit != 'true'
+        run: curl -fL https://zenodo.org/api/records/17794327/files/testCase_cameo_v3.1.tar.gz/content -o cameo.tar.gz
+      - name: Inspect reference outputs and NetCDF metadata
         shell: bash
         run: |
           set -euo pipefail
-          URL=https://zenodo.org/api/records/17794327/files/testCase_cameo_v3.1.tar.gz/content
-          curl -fL "$URL" -o cameo.tar.gz
-          echo '=== archive size ==='
-          ls -lh cameo.tar.gz
-          echo '=== archive paths ==='
-          tar -tzf cameo.tar.gz | sed -n '1,300p'
-          mkdir cameo
-          tar -xzf cameo.tar.gz -C cameo
-          echo '=== extracted files ==='
-          find cameo -type f -printf '%p\t%s bytes\n' | sort | sed -n '1,500p'
-          echo '=== control/parameter text ==='
-          while IFS= read -r f; do
-            echo "--- $f ---"
-            sed -n '1,260p' "$f"
-          done < <(find cameo -type f \( -name '*.control' -o -name '*.param' -o -name '*.txt' -o -name '*.nml' \) | sort)
-          echo '=== netCDF files ==='
-          find cameo -type f -name '*.nc' | sort
+          mkdir -p probe
+          tar -xzf cameo.tar.gz -C probe \
+            testCase_cameo_v3.1/output/ForComparison.tar.gz \
+            testCase_cameo_v3.1/README \
+            testCase_cameo_v3.1/ancillary_data/param.nml.default \
+            testCase_cameo_v3.1/input/param.nml.default \
+            testCase_cameo_v3.1/ancillary_data/ntopo_nhdplus_cameo_pfaf.nc \
+            testCase_cameo_v3.1/input/RUNOFF_case1.nc \
+            testCase_cameo_v3.1/settings/v3.1/testCase_cameo_case3.control
+          ROOT=probe/testCase_cameo_v3.1
+          echo '=== README ==='; cat "$ROOT/README"
+          echo '=== PARAM ancillary ==='; cat "$ROOT/ancillary_data/param.nml.default"
+          echo '=== PARAM input ==='; cat "$ROOT/input/param.nml.default"
+          echo '=== REFERENCE ARCHIVE CONTENTS ==='
+          tar -tzf "$ROOT/output/ForComparison.tar.gz" | sed -n '1,500p'
+          mkdir -p ref
+          tar -xzf "$ROOT/output/ForComparison.tar.gz" -C ref
+          echo '=== REFERENCE FILES ==='
+          find ref -type f -printf '%p\t%s\n' | sort
+          python -m pip install -q netCDF4
+          python - <<'PY'
+          from netCDF4 import Dataset
+          from pathlib import Path
+          files=[Path('probe/testCase_cameo_v3.1/ancillary_data/ntopo_nhdplus_cameo_pfaf.nc'),
+                 Path('probe/testCase_cameo_v3.1/input/RUNOFF_case1.nc')]
+          files += sorted(Path('ref').rglob('*.nc'))
+          for p in files:
+              print('\n===== NETCDF',p,'=====')
+              with Dataset(p) as ds:
+                  print('dimensions:', {k:len(v) for k,v in ds.dimensions.items()})
+                  print('variables:')
+                  for k,v in ds.variables.items():
+                      attrs={a:getattr(v,a) for a in v.ncattrs() if a in ('units','long_name','standard_name','calendar','_FillValue')}
+                      print(' ',k, v.dimensions, v.shape, v.dtype, attrs)
+                  # Small coordinate samples only
+                  for k in ('reachID','segId','link','to','time','hru','hru_id'):
+                      if k in ds.variables:
+                          x=ds.variables[k][:]
+                          flat=x.ravel()
+                          print(' sample',k, flat[:8].tolist(), '... last', flat[-3:].tolist() if flat.size else [])
+          PY
