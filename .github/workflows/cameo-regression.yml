@@ -27,6 +27,7 @@ jobs:
           mkdir -p cameo
           tar -xzf cameo.tar.gz -C cameo \
             testCase_cameo_v3.1/ancillary_data/ntopo_nhdplus_cameo_pfaf.nc \
+            testCase_cameo_v3.1/input/RUNOFF_case1.nc \
             testCase_cameo_v3.1/output/ForComparison.tar.gz
       - uses: julia-actions/setup-julia@v2
         with:
