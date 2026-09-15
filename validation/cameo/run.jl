@@ -16,12 +16,16 @@ for (i,line) in enumerate(lines)
     rid[i]=parse(Int,x[1]); down[i]=parse(Int,x[2]); len[i]=parse(Float64,x[3])
     slope[i]=parse(Float64,x[4]); width[i]=parse(Float64,x[5]); active[i]=parse(Int,x[6]) != 0
 end
-function read_f64(path,n)
-    v=Vector{Float64}(undef,n); open(path,"r") do io; read!(io,v); end; v
+function read_f32_as_f64(path,n)
+    v=Vector{Float32}(undef,n)
+    open(path,"r") do io
+        read!(io,v)
+    end
+    Float64.(v)
 end
 # Python writes (time, reach) in C order. Julia column-major reshape to
 # (reach,time) therefore produces the desired orientation directly.
-raw=read_f64(joinpath(work,"qlat.f64"),nreach*ntime)
+raw=read_f32_as_f64(joinpath(work,"qlat.f32"),nreach*ntime)
 qlat=reshape(raw,nreach,ntime)
 net=RiverNetwork(rid,down)
 p=ReachParameters(nreach; length=len,slope=slope,bottom_width=width,side_slope=0.0,
@@ -32,5 +36,7 @@ for (name,method) in methods
     @info "Cameo routing" method=name nreach ntime
     model=RoutingModel(method,net,p;dt=dt,active_reaches=active,headwater_drain_point=2)
     q=route_series(model,qlat)
-    open(joinpath(work,"julia_"*name*".f64"),"w") do io; write(io,vec(q)); end
+    open(joinpath(work,"julia_"*name*".f64"),"w") do io
+        write(io,vec(q))
+    end
 end
