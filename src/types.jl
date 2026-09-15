@@ -33,7 +33,7 @@ struct EulerKinematicWave <: AbstractRoutingMethod
     cells_per_reach::Int
     cfl::Float64
 end
-EulerKinematicWave(; cells_per_reach::Integer=12, cfl::Real=0.85) =
+EulerKinematicWave(; cells_per_reach::Integer=20, cfl::Real=1.0) =
     EulerKinematicWave(Int(cells_per_reach), Float64(cfl))
 
 """Muskingum-Cunge routing with dynamic Cunge X and Courant-based substepping."""
@@ -53,7 +53,7 @@ struct DiffusiveWave <: AbstractRoutingMethod
     alpha::Float64
     beta::Float64
 end
-DiffusiveWave(; cells_per_reach::Integer=12, alpha::Real=1.0, beta::Real=1.0) =
+DiffusiveWave(; cells_per_reach::Integer=20, alpha::Real=1.0, beta::Real=1.0) =
     DiffusiveWave(Int(cells_per_reach), Float64(alpha), Float64(beta))
 
 """Hydraulic and IRF parameters for all river reaches.

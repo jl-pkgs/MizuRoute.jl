@@ -1,49 +1,34 @@
-function _kw_reference_celerity(p::ReachParameters, i::Int, profile::Vector{Float64}, qin::Float64)
-    qref = max(qin, maximum(profile), 1.0e-10)
-    c = _reach_celerity(p, i, qref)
-    if !(c > 0.0) || !isfinite(c)
-        c = p.irf_velocity[i]
-    end
-    return c
+@inline function _kw_hydraulics(p::ReachParameters, i::Int, qbar::Float64)
+    q = abs(qbar)
+    depth = flow_depth(q, p.bottom_width[i], p.side_slope[i], p.slope[i], p.mann_n[i];
+        zf=p.floodplain_slope[i], bankfull_depth=p.bankfull_depth[i])
+    c = celerity(q, p.bottom_width[i], p.side_slope[i], p.slope[i], p.mann_n[i];
+        zf=p.floodplain_slope[i], bankfull_depth=p.bankfull_depth[i])
+    return depth, c
 end
 
-"""Eulerian kinematic-wave routing following the current mizuRoute ADE path.
-
-mizuRoute's Euler kinematic-wave solver linearizes
-`∂Q/∂t + cₖ ∂Q/∂x = 0` and calls the shared implicit advection-diffusion
-tridiagonal solver with `D=0`. This implementation uses the same centered,
-fully implicit default and preserves mizuRoute's previous-gradient Neumann
-condition at the outlet. A uniform lateral source is retained as the physically
-intended RHS source term.
-"""
-function _route_reach!(method::EulerKinematicWave, state::EulerKWState,
+"""Euler kinematic-wave update matching mizuRoute v3.1 `kwe_route.f90`."""
+function _route_reach!(::EulerKinematicWave, state::EulerKWState,
     p::ReachParameters, i::Int, qin::Float64, qlat::Float64, dt::Float64)
-    q = state.profile[i]
-    n = length(q)
+    qprev = state.profile[i]
+    n = length(qprev)
     n >= 4 || throw(ArgumentError("Euler KW profile needs at least 4 nodes"))
 
-    # Although the implicit scheme is not CFL-limited, mizuRoute recomputes
-    # hydraulic properties in substeps. Retaining CFL-based substepping makes
-    # the linearized celerity update more robust for flashy hydrographs.
-    dx = p.length[i] / max(n - 2, 1)
-    c0 = _kw_reference_celerity(p, i, q, qin + qlat)
-    nsub = max(1, ceil(Int, c0 * dt / max(method.cfl * dx, 1.0e-12)))
-    dts = dt / nsub
+    qbar = (qin + qprev[1] + qprev[n - 1]) / 3.0
+    _, ck = _kw_hydraulics(p, i, qbar)
+    qnode = _solve_ade(qprev, p.length[i], dt, qin, ck, 0.0, qlat;
+        advection=:central, downstream=:neumann, wc=1.0, wd=1.0,
+        include_lateral=false)
 
-    qin0 = q[1]
-    for k in 1:nsub
-        f = k / nsub
-        qbc = qin0 + f * (max(qin, 0.0) - qin0)
-        c = _kw_reference_celerity(p, i, q, qbc + qlat)
-        q = _solve_ade(q, p.length[i], dts, qbc, c, 0.0, qlat;
-            advection=:central, downstream=:neumann, wc=1.0, wd=1.0,
-            include_lateral=true)
+    channel_out = qnode[n - 1]
+    if abs(channel_out) > 0.0
+        vol = max(0.0, state.volume[i])
+        reduction = min((vol + dt * qin) * 0.999 / (channel_out * dt), 1.0)
+        @inbounds qnode[2:end] .*= reduction
+        channel_out = qnode[n - 1]
     end
-
-    state.profile[i] = q
-    qcandidate = q[end]
-    qout, vnew = _balance_update(state.volume[i], qin, qlat, qcandidate, dt)
-    state.qout[i] = qout
-    state.volume[i] = vnew
-    return qout
+    state.volume[i] += (qin - channel_out) * dt
+    state.profile[i] = qnode
+    state.qout[i] = max(0.0, channel_out + qlat)
+    return state.qout[i]
 end

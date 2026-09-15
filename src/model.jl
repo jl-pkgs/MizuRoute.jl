@@ -30,7 +30,7 @@ end
 function _initial_state(method::EulerKinematicWave, net::RiverNetwork, p::ReachParameters, dt::Float64, q0::Float64)
     n = length(net)
     method.cells_per_reach >= 3 || throw(ArgumentError("Euler KW requires cells_per_reach >= 3"))
-    profiles = [fill(q0, method.cells_per_reach + 1) for _ in 1:n]
+    profiles = [fill(q0, method.cells_per_reach) for _ in 1:n]
     EulerKWState(fill(q0, n), zeros(n), zeros(n), zeros(n), profiles)
 end
 
@@ -44,7 +44,7 @@ function _initial_state(method::DiffusiveWave, net::RiverNetwork, p::ReachParame
     method.cells_per_reach >= 3 || throw(ArgumentError("DiffusiveWave requires cells_per_reach >= 3"))
     0.0 <= method.alpha <= 1.0 || throw(ArgumentError("DiffusiveWave alpha must be in [0,1]"))
     0.0 <= method.beta <= 1.0 || throw(ArgumentError("DiffusiveWave beta must be in [0,1]"))
-    profiles = [fill(q0, method.cells_per_reach + 1) for _ in 1:n]
+    profiles = [fill(q0, method.cells_per_reach) for _ in 1:n]
     DWState(fill(q0, n), zeros(n), zeros(n), zeros(n), profiles)
 end
 
