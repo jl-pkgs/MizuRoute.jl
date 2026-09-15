@@ -1,0 +1,52 @@
+name: Cameo regression
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'validation/cameo/**'
+      - '.github/workflows/cameo-regression.yml'
+
+jobs:
+  official-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: cache-cameo
+        with:
+          path: cameo.tar.gz
+          key: cameo-v3.1-zenodo-17794327
+      - name: Download official Cameo v3.1
+        if: steps.cache-cameo.outputs.cache-hit != 'true'
+        run: curl -fL https://zenodo.org/api/records/17794327/files/testCase_cameo_v3.1.tar.gz/content -o cameo.tar.gz
+      - name: Extract official inputs and reference output
+        run: |
+          mkdir -p cameo
+          tar -xzf cameo.tar.gz -C cameo \
+            testCase_cameo_v3.1/ancillary_data/ntopo_nhdplus_cameo_pfaf.nc \
+            testCase_cameo_v3.1/output/ForComparison.tar.gz
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate Julia package
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+      - name: Prepare Cameo arrays
+        run: |
+          python -m pip install -q numpy netCDF4
+          python validation/cameo/prepare.py cameo/testCase_cameo_v3.1 --out validation/cameo/work
+      - name: Run Julia IRF and KWT
+        run: julia --project=. validation/cameo/run.jl validation/cameo/work
+      - name: Compare every reach and timestep
+        run: |
+          python validation/cameo/compare.py --work validation/cameo/work
+          cat validation/cameo/work/report.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cameo-regression-report
+          path: |
+            validation/cameo/work/report.md
+            validation/cameo/work/summary.json
