@@ -22,17 +22,23 @@ jobs:
       - name: Install Fortran dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gfortran libnetcdf-dev libnetcdff-dev openmpi-bin libopenmpi-dev make
+          sudo apt-get install -y -qq gfortran gcc g++ cmake libnetcdf-dev libnetcdff-dev openmpi-bin libopenmpi-dev make python3
           mpifort --version
           nc-config --prefix
           nf-config --prefix
-      - name: Build pinned official mizuRoute
+      - name: Build pinned official mizuRoute with official ParallelIO
+        shell: bash
         run: |
+          set -euo pipefail
           git clone -q https://github.com/ESCOMP/mizuRoute.git upstream
           cd upstream
           git checkout -q ec68c7f4e3241c6cb0ea0a96b632d85fe33fb219
+          mkdir -p libraries/parallelio route/build/lib/piolib
+          ./bin/git-fleximod -g .gitmodules update
+          test -d libraries/parallelio
           cd route/build
-          gmake FC=gnu FC_EXE=mpifort F_MASTER="$PWD/../" NCDF_PATH=/usr EXE=route_runoff isPIO=no isGPTL=no isOpenMP=no MODE=fast
+          gmake FC=gnu FC_EXE=mpifort F_MASTER="$PWD/../" NCDF_PATH=/usr EXE=route_runoff \
+            isPIO=yes isGPTL=yes isOpenMP=no PIO_FILESYSTEM_HINTS= MODE=fast
           ls -lh ../bin/route_runoff
       - name: Run all routing methods on Cameo case1
         shell: bash
