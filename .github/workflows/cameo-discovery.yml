@@ -8,17 +8,24 @@ jobs:
   discover:
     runs-on: ubuntu-latest
     steps:
-      - name: Query official Cameo Zenodo record
+      - name: Download and inspect official Cameo v3.1
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL https://zenodo.org/api/records/17794327 -o record.json
-          python - <<'PY'
-          import json
-          r=json.load(open('record.json'))
-          print('TITLE:', r.get('metadata',{}).get('title'))
-          print('DOI:', r.get('doi'))
-          print('FILES:')
-          for f in r.get('files',[]):
-              print(f"{f.get('key')}\t{f.get('size')}\t{f.get('links',{}).get('content') or f.get('links',{}).get('self')}")
-          PY
+          URL=https://zenodo.org/api/records/17794327/files/testCase_cameo_v3.1.tar.gz/content
+          curl -fL "$URL" -o cameo.tar.gz
+          echo '=== archive size ==='
+          ls -lh cameo.tar.gz
+          echo '=== archive paths ==='
+          tar -tzf cameo.tar.gz | sed -n '1,300p'
+          mkdir cameo
+          tar -xzf cameo.tar.gz -C cameo
+          echo '=== extracted files ==='
+          find cameo -type f -printf '%p\t%s bytes\n' | sort | sed -n '1,500p'
+          echo '=== control/parameter text ==='
+          while IFS= read -r f; do
+            echo "--- $f ---"
+            sed -n '1,260p' "$f"
+          done < <(find cameo -type f \( -name '*.control' -o -name '*.param' -o -name '*.txt' -o -name '*.nml' \) | sort)
+          echo '=== netCDF files ==='
+          find cameo -type f -name '*.nc' | sort
