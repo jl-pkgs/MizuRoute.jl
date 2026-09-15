@@ -1,0 +1,24 @@
+name: Cameo discovery
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query official Cameo Zenodo record
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://zenodo.org/api/records/17794327 -o record.json
+          python - <<'PY'
+          import json
+          r=json.load(open('record.json'))
+          print('TITLE:', r.get('metadata',{}).get('title'))
+          print('DOI:', r.get('doi'))
+          print('FILES:')
+          for f in r.get('files',[]):
+              print(f"{f.get('key')}\t{f.get('size')}\t{f.get('links',{}).get('content') or f.get('links',{}).get('self')}")
+          PY
