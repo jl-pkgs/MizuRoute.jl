@@ -22,12 +22,11 @@ jobs:
       - name: Download official Cameo v3.1
         if: steps.cache-cameo.outputs.cache-hit != 'true'
         run: curl -fL https://zenodo.org/api/records/17794327/files/testCase_cameo_v3.1.tar.gz/content -o cameo.tar.gz
-      - name: Extract official inputs and reference output
+      - name: Extract official network and reference output
         run: |
           mkdir -p cameo
           tar -xzf cameo.tar.gz -C cameo \
             testCase_cameo_v3.1/ancillary_data/ntopo_nhdplus_cameo_pfaf.nc \
-            testCase_cameo_v3.1/input/RUNOFF_case1.nc \
             testCase_cameo_v3.1/output/ForComparison.tar.gz
       - uses: julia-actions/setup-julia@v2
         with:
@@ -35,7 +34,7 @@ jobs:
       - uses: julia-actions/cache@v2
       - name: Instantiate Julia package
         run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
-      - name: Prepare Cameo arrays
+      - name: Prepare official river-routing forcing
         run: |
           python -m pip install -q numpy netCDF4
           python validation/cameo/prepare.py cameo/testCase_cameo_v3.1 --out validation/cameo/work
