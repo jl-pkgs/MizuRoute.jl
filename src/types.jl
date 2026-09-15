@@ -5,16 +5,19 @@ struct Accumulation <: AbstractRoutingMethod end
 
 """Reach-specific impulse response function routing.
 
-The keyword fields are retained for API compatibility. The mizuRoute-compatible
-kernel uses the fixed hourly construction implemented by `make_uh` in the
-Fortran model.
+`legacy_volume_limiter=true` reproduces the older serial mizuRoute IRF volume
+limiter used by the bundled Cameo `ForComparison` output. The default `false`
+matches the current mizuRoute main branch. The other keyword fields are retained
+for API compatibility; the kernel itself uses mizuRoute's fixed hourly `make_uh`.
 """
 struct IRF <: AbstractRoutingMethod
     horizon_factor::Float64
     min_steps::Int
+    legacy_volume_limiter::Bool
 end
-IRF(; horizon_factor::Real=6.0, min_steps::Integer=8) =
-    IRF(Float64(horizon_factor), Int(min_steps))
+IRF(; horizon_factor::Real=6.0, min_steps::Integer=8,
+    legacy_volume_limiter::Bool=false) =
+    IRF(Float64(horizon_factor), Int(min_steps), legacy_volume_limiter)
 
 """mizuRoute/TopNet Lagrangian kinematic-wave tracking.
 
