@@ -31,6 +31,7 @@ function _route_reach!(method::DiffusiveWave, state::DWState,
     end
     state.volume[i] += (qin - channel_out) * dt
     state.profile[i] = qnode
-    state.qout[i] = max(0.0, channel_out + qlat)
+    # Match Fortran assignment exactly; no post-ADE non-negative clamp.
+    state.qout[i] = channel_out + qlat
     return state.qout[i]
 end
