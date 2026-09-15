@@ -31,7 +31,13 @@ net=RiverNetwork(rid,down)
 p=ReachParameters(nreach; length=len,slope=slope,bottom_width=width,side_slope=0.0,
     floodplain_slope=num("floodplain_slope"),bankfull_depth=num("bankfull_depth"),mann_n=num("mann_n"),
     irf_velocity=num("irf_velocity"),irf_diffusivity=num("irf_diffusivity"))
-methods = [("irf",IRF()), ("kwt",LagrangianKWT(max_packets=20))]
+
+# The bundled ForComparison files predate the current main-branch IRF low-flow
+# limiter. Use its serial/legacy semantics only for this historical oracle.
+methods = [
+    ("irf", IRF(legacy_volume_limiter=true)),
+    ("kwt", LagrangianKWT(max_packets=20)),
+]
 for (name,method) in methods
     @info "Cameo routing" method=name nreach ntime
     model=RoutingModel(method,net,p;dt=dt,active_reaches=active,headwater_drain_point=2)
