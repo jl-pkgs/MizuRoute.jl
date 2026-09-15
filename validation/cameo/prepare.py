@@ -42,7 +42,13 @@ total=bas.copy()
 for i in order:
     j=idx.get(int(down[i]))
     if j is not None: total[j]+=total[i]
+zero_area = total <= 0.0
+print('zero-total-area reaches:', int(zero_area.sum()))
 width=0.001*np.sqrt(np.maximum(total,0.0))
+# mizuRoute keeps zero-contribution reaches out of the active routing graph via goodBas.
+# MizuRoute.jl requires positive geometric width, so assign an inert numerical width;
+# their lateral and routed flows remain zero.
+width[zero_area] = 1.0e-6
 with Dataset(ref) as ds:
     rid=np.asarray(ds['reachID'][:],dtype=np.int64)
     assert np.array_equal(rid,seg)
