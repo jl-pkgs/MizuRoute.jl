@@ -209,7 +209,7 @@ $ tilde(h)(x,t) = x/(2 sqrt(pi D t)) exp(-(x-C t)^2/(4 D t)), $
 
 随后对离散序列重新归一化。因此，本实现复现的是 mizuRoute 程序行为，而不是直接数值积分理论密度。程序以 1 h 为基础间隔计算最多 240 h 的响应，先与一个 routing interval 内均匀分布的单位径流脉冲卷积，累计概率达到 0.9999 后截断，再聚合到模型时间步。应用时宜使用整小时的 routing interval，并检查主要旅行时间明显小于 10 d；超长河段应进一步分段。
 
-本 Julia 实现中，只有 `IRF()` 属于 Lohmann/VIC 同源的河道汇流方法；`GammaUHRouter` 只描述坡面入河延迟，KWT、Euler KW、Muskingum--Cunge 和 Diffusive Wave 均不属于 Lohmann IRF。每条河段的离散 kernel 最终归一化为单位和，因此不会人为增加或减少水量。
+只有 `IRF()` 属于 Lohmann/VIC 同源的河道汇流方法；`GammaUHRouter` 只描述坡面入河延迟，KWT、Euler KW、Muskingum--Cunge 和 Diffusive Wave 均不属于 Lohmann IRF。每条河段的离散 kernel 最终归一化为单位和，因此不会人为增加或减少水量。
 
 == Lagrangian Kinematic-Wave Tracking (KWT)
 
@@ -229,10 +229,7 @@ $ pdv(Q, t) + C pdv(Q, x) = C q_l. $
 
 当前 mizuRoute 的 Euler-KW 并不是单独的显式迎风求解器，而是令扩散系数 $D=0$，调用与 Diffusive Wave 共用的 `solve_ade` 三对角求解器。Julia 版据此采用相同架构：默认中心差分、全隐式时间权重，上游为给定流量 Dirichlet 边界，下游为保留上一时间层流量梯度的 Neumann 边界。
 
-令
-
-$ C_a = C Delta t / Delta x. $
-
+令$C_a = C (Delta t) / (Delta x)$，
 对于默认全隐式中心差分，内部节点构成三对角系统；代码通过 Thomas 算法求解。虽然全隐式格式不受显式 CFL 稳定性上限约束，Julia 版仍允许依据波速进行 sub-stepping，以便在洪峰快速变化时重新计算水深与运动波波速。
 
 == Muskingum--Cunge

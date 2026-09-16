@@ -95,8 +95,8 @@ $ Q_t=sum_i sum_(n=1)^96 R_(i,t-n+1) U_(i,n), $
 单位为 m³/s。`Lohmann_conv` 中 $R_(i,t)$ 为 `OUT_RUNOFF + OUT_BASEFLOW`；矩阵乘法先汇总同一滞后日的全部上游网格，`aux_Lohmann_conv` 再沿时间方向完成上式卷积。
 
 #table(
-  columns: (0.65fr, 1.2fr, 1.2fr, 1.15fr, 2.1fr),
-  [参数], [VICTools.R], [原版 mizuRoute], [本 Julia 实现], [应用含义与取值原则],
+  columns: (0.65fr, 1.2fr, 1.2fr, 1.15fr, 2.2fr),
+  [参数], [VICTools.R], [mizuRoute], [MizuRoute.jl], [应用含义与取值原则],
   [$a$], [不使用], [2.5], [2.5], [控制 Gamma 单位线形状；依据 HRU 出流过程率定],
   [$theta$], [不使用], [86400 s], [3600 s], [控制坡面平均延迟 $a theta$；需与 HRU 尺度和时间步匹配],
   [$C$], [1.5 m/s], [1.5 m/s], [1.0 m/s], [控制平均传播时间 $L/C$；依据洪峰到时或流速资料率定],
@@ -143,4 +143,4 @@ $ Q_t=sum_i sum_(n=1)^96 R_(i,t-n+1) U_(i,n), $
   
   若不满足，单位线尾部会被截断后重新归一化，应延长 `lcuh` 或将长单元分段；同时应检查源区到出口的主要响应小于总时窗 96 d。$d<2500 "m"$ 的单元被视为瞬时通过，调整 $C,D$ 对其无效。
 
-#bibliography("refs.bib", title: "参考文献")
+// #bibliography("refs.bib", title: "参考文献")

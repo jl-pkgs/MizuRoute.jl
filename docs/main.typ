@@ -1,7 +1,9 @@
 #import "@local/modern-cug-report:0.1.3": *
 #show: doc => template(doc, footer: "", header: "")
 
-#set par(justify: true, leading: 0.65em)
+#set par(justify: true, leading: 0.8em, 
+  first-line-indent: (amount: 2em, all: true),
+)
 #set heading(numbering: "1.1")
 // #set math.equation(numbering: "(1)")
 
